@@ -6,7 +6,7 @@ const schema = a.schema({
       company: a.string().required(),
       position: a.string().required(),
       location: a.string(),
-      status: a.enum(['applied', 'interview', 'offer', 'rejected', 'accepted']).default('applied'),
+      status: a.enum(['applied', 'interview', 'offer', 'rejected', 'accepted']),
       applicationDate: a.date(),
       salary: a.string(),
       description: a.string(),

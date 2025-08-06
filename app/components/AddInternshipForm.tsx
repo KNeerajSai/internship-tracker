@@ -24,6 +24,7 @@ export default function AddInternshipForm({ onSubmit, onCancel }: AddInternshipF
     
     const submitData = {
       ...formData,
+      status: formData.status || 'applied', // Set default status
       applicationDate: formData.applicationDate || undefined,
       salary: formData.salary || undefined,
       description: formData.description || undefined,
