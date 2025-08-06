@@ -6,10 +6,11 @@ import type { Schema } from "../amplify/data/resource";
 import { Amplify } from "aws-amplify";
 
 // Import amplify_outputs.json if it exists, otherwise use empty config
-let outputs = {};
+let outputs: Record<string, unknown> = {};
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   outputs = require("../amplify_outputs.json");
-} catch (error) {
+} catch {
   console.log("amplify_outputs.json not found - backend not deployed yet");
 }
 import InternshipCard from "./components/InternshipCard";
@@ -48,7 +49,7 @@ export default function Home() {
     }
   };
 
-  const handleAddInternship = async (internshipData: any) => {
+  const handleAddInternship = async (internshipData: Record<string, unknown>) => {
     try {
       await client.models.Internship.create(internshipData);
       fetchInternships();
@@ -113,7 +114,7 @@ export default function Home() {
         ) : internships.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No internships added yet.</p>
-            <p className="text-gray-400">Click "Add Internship" to get started!</p>
+            <p className="text-gray-400">Click &quot;Add Internship&quot; to get started!</p>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

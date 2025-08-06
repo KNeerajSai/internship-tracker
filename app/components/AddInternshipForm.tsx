@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 interface AddInternshipFormProps {
-  onSubmit: (internshipData: any) => void;
+  onSubmit: (internshipData: Record<string, unknown>) => void;
   onCancel: () => void;
 }
 
