@@ -1,80 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "../amplify/data/resource";
-import { Amplify } from "aws-amplify";
+import { useState } from "react";
 
-// Import amplify_outputs.json if it exists, otherwise use empty config
-let outputs: Record<string, unknown> = {};
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  outputs = require("../amplify_outputs.json");
-} catch {
-  console.log("amplify_outputs.json not found - backend not deployed yet");
+interface Internship {
+  id: string;
+  company: string;
+  position: string;
+  status: string;
+  location?: string;
+  applicationDate?: string;
+  salary?: string;
+  notes?: string;
 }
-import InternshipCard from "./components/InternshipCard";
-import AddInternshipForm from "./components/AddInternshipForm";
-
-Amplify.configure(outputs);
-
-const client = generateClient<Schema>();
 
 export default function Home() {
-  const [internships, setInternships] = useState<Array<Schema["Internship"]["type"]>>([]);
-  const [loading, setLoading] = useState(true);
+  const [internships, setInternships] = useState<Internship[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    company: "",
+    position: "",
+    location: "",
+    status: "applied",
+    applicationDate: "",
+    salary: "",
+    notes: ""
+  });
 
-  useEffect(() => {
-    fetchInternships();
-  }, []);
-
-  const fetchInternships = async () => {
-    try {
-      // Check if backend is configured
-      if (!outputs.aws_project_region) {
-        console.log("Backend not deployed yet");
-        setInternships([]);
-        setLoading(false);
-        return;
-      }
-      
-      const { data } = await client.models.Internship.list();
-      setInternships(data);
-    } catch (error) {
-      console.error("Error fetching internships:", error);
-      setInternships([]);
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newInternship: Internship = {
+      id: Date.now().toString(),
+      ...formData
+    };
+    setInternships([...internships, newInternship]);
+    setFormData({
+      company: "",
+      position: "",
+      location: "",
+      status: "applied",
+      applicationDate: "",
+      salary: "",
+      notes: ""
+    });
+    setShowForm(false);
   };
 
-  const handleAddInternship = async (internshipData: Record<string, unknown>) => {
-    try {
-      await client.models.Internship.create(internshipData);
-      fetchInternships();
-      setShowForm(false);
-    } catch (error) {
-      console.error("Error adding internship:", error);
-    }
+  const handleDelete = (id: string) => {
+    setInternships(internships.filter(internship => internship.id !== id));
   };
 
-  const handleDeleteInternship = async (id: string) => {
-    try {
-      await client.models.Internship.delete({ id });
-      fetchInternships();
-    } catch (error) {
-      console.error("Error deleting internship:", error);
-    }
+  const statusColors = {
+    applied: "bg-yellow-100 text-yellow-800",
+    interview: "bg-blue-100 text-blue-800",
+    offer: "bg-green-100 text-green-800",
+    rejected: "bg-red-100 text-red-800",
+    accepted: "bg-purple-100 text-purple-800"
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading internships...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -83,35 +64,109 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900">Internship Tracker</h1>
           <button
             onClick={() => setShowForm(true)}
-            disabled={!outputs.aws_project_region}
-            className={`px-4 py-2 rounded-lg ${
-              outputs.aws_project_region 
-                ? "bg-blue-600 text-white hover:bg-blue-700" 
-                : "bg-gray-400 text-gray-200 cursor-not-allowed"
-            }`}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Add Internship
           </button>
         </div>
 
         {showForm && (
-          <div className="mb-8">
-            <AddInternshipForm
-              onSubmit={handleAddInternship}
-              onCancel={() => setShowForm(false)}
-            />
+          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 className="text-2xl font-bold mb-4">Add New Internship</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
+                  <input
+                    type="text"
+                    value={formData.company}
+                    onChange={(e) => setFormData({...formData, company: e.target.value})}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
+                  <input
+                    type="text"
+                    value={formData.position}
+                    onChange={(e) => setFormData({...formData, position: e.target.value})}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="applied">Applied</option>
+                    <option value="interview">Interview</option>
+                    <option value="offer">Offer</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="accepted">Accepted</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Application Date</label>
+                  <input
+                    type="date"
+                    value={formData.applicationDate}
+                    onChange={(e) => setFormData({...formData, applicationDate: e.target.value})}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
+                  <input
+                    type="text"
+                    value={formData.salary}
+                    onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                    placeholder="e.g., $60,000/year"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  rows={3}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add Internship
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
-        {!outputs.aws_project_region ? (
-          <div className="text-center py-12">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl mx-auto">
-              <h2 className="text-xl font-semibold text-yellow-800 mb-2">Backend Not Deployed</h2>
-              <p className="text-yellow-700 mb-4">The Amplify backend is still deploying. This usually takes 5-10 minutes.</p>
-              <p className="text-sm text-yellow-600">The app will automatically connect once deployment is complete.</p>
-            </div>
-          </div>
-        ) : internships.length === 0 ? (
+        {internships.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No internships added yet.</p>
             <p className="text-gray-400">Click &quot;Add Internship&quot; to get started!</p>
@@ -119,11 +174,54 @@ export default function Home() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {internships.map((internship) => (
-              <InternshipCard
-                key={internship.id}
-                internship={internship}
-                onDelete={handleDeleteInternship}
-              />
+              <div key={internship.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">{internship.company}</h3>
+                    <p className="text-gray-600">{internship.position}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(internship.id)}
+                    className="text-red-500 hover:text-red-700 text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {internship.location && (
+                  <p className="text-sm text-gray-500 mb-2">📍 {internship.location}</p>
+                )}
+
+                <div className="mb-4">
+                  <span
+                    className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                      statusColors[internship.status as keyof typeof statusColors] || statusColors.applied
+                    }`}
+                  >
+                    {internship.status.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  {internship.applicationDate && (
+                    <p>
+                      <strong>Applied:</strong> {new Date(internship.applicationDate).toLocaleDateString()}
+                    </p>
+                  )}
+                  
+                  {internship.salary && (
+                    <p>
+                      <strong>Salary:</strong> {internship.salary}
+                    </p>
+                  )}
+                </div>
+
+                {internship.notes && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-sm text-gray-700">{internship.notes}</p>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
