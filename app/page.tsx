@@ -399,7 +399,7 @@ export default function Home() {
       return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     };
     
-    let icsEvent = [
+    const icsEvent = [
       'BEGIN:VEVENT',
       `UID:${Date.now()}@interntracker`,
       `DTSTAMP:${formatDate(new Date())}`,
