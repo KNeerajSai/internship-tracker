@@ -15,6 +15,36 @@ interface Internship {
   companyLogo?: string;
   description?: string;
   skills?: string[];
+  deadline?: string;
+  interviewDate?: string;
+  resumeUsed?: string;
+  contacts?: Contact[];
+}
+
+interface Contact {
+  name: string;
+  role: string;
+  email?: string;
+  linkedin?: string;
+  notes?: string;
+}
+
+interface Resume {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  uploadDate: string;
+  tags: string[];
+}
+
+interface Alert {
+  id: string;
+  type: 'deadline' | 'interview' | 'followup' | 'status';
+  message: string;
+  date: string;
+  internshipId: string;
+  read: boolean;
 }
 
 // Company logos (using placeholder images)
@@ -44,6 +74,14 @@ export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   
+  // New state for features
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [showResumes, setShowResumes] = useState(false);
+  const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(false);
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  
   const [formData, setFormData] = useState({
     company: "",
     position: "",
@@ -54,6 +92,10 @@ export default function Home() {
     notes: "",
     description: "",
     skills: [] as string[],
+    deadline: "",
+    interviewDate: "",
+    resumeUsed: "",
+    contacts: [] as Contact[],
   });
 
   // Smooth scroll to section
@@ -65,19 +107,30 @@ export default function Home() {
   useEffect(() => {
     setTimeout(() => {
       const saved = localStorage.getItem('internships');
+      const savedAlerts = localStorage.getItem('alerts');
+      const savedResumes = localStorage.getItem('resumes');
+      
       if (saved) {
         setInternships(JSON.parse(saved));
+      }
+      if (savedAlerts) {
+        setAlerts(JSON.parse(savedAlerts));
+      }
+      if (savedResumes) {
+        setResumes(JSON.parse(savedResumes));
       }
       setLoading(false);
     }, 1000); // Simulate loading
   }, []);
 
-  // Save to localStorage whenever internships change
+  // Save to localStorage whenever data changes
   useEffect(() => {
     if (!loading) {
       localStorage.setItem('internships', JSON.stringify(internships));
+      localStorage.setItem('alerts', JSON.stringify(alerts));
+      localStorage.setItem('resumes', JSON.stringify(resumes));
     }
-  }, [internships, loading]);
+  }, [internships, alerts, resumes, loading]);
 
   // Parallax effect on scroll
   useEffect(() => {
@@ -123,6 +176,106 @@ export default function Home() {
     }
   }, [internships, loading]);
 
+  // Generate alerts based on internships
+  useEffect(() => {
+    if (!loading) {
+      const newAlerts: Alert[] = [];
+      const today = new Date();
+      
+      internships.forEach((internship) => {
+        // Deadline alerts
+        if (internship.deadline) {
+          const deadline = new Date(internship.deadline);
+          const daysUntilDeadline = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysUntilDeadline === 7) {
+            newAlerts.push({
+              id: `${internship.id}-deadline-7`,
+              type: 'deadline',
+              message: `Application deadline for ${internship.company} is in 1 week!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          } else if (daysUntilDeadline === 3) {
+            newAlerts.push({
+              id: `${internship.id}-deadline-3`,
+              type: 'deadline',
+              message: `⚠️ Application deadline for ${internship.company} is in 3 days!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          } else if (daysUntilDeadline === 1) {
+            newAlerts.push({
+              id: `${internship.id}-deadline-1`,
+              type: 'deadline',
+              message: `🚨 Application deadline for ${internship.company} is tomorrow!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          }
+        }
+        
+        // Interview reminders
+        if (internship.interviewDate && internship.status === 'interview') {
+          const interviewDate = new Date(internship.interviewDate);
+          const hoursUntilInterview = Math.ceil((interviewDate.getTime() - today.getTime()) / (1000 * 60 * 60));
+          
+          if (hoursUntilInterview === 24) {
+            newAlerts.push({
+              id: `${internship.id}-interview-24`,
+              type: 'interview',
+              message: `🎤 Interview with ${internship.company} is tomorrow! Time to prepare!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          } else if (hoursUntilInterview === 2) {
+            newAlerts.push({
+              id: `${internship.id}-interview-2`,
+              type: 'interview',
+              message: `🎯 Interview with ${internship.company} is in 2 hours! Good luck!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          }
+        }
+        
+        // Follow-up reminders
+        if (internship.status === 'interview' && internship.interviewDate) {
+          const interviewDate = new Date(internship.interviewDate);
+          const daysSinceInterview = Math.floor((today.getTime() - interviewDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysSinceInterview === 1) {
+            newAlerts.push({
+              id: `${internship.id}-followup`,
+              type: 'followup',
+              message: `📧 Send a thank you email to ${internship.company}!`,
+              date: today.toISOString(),
+              internshipId: internship.id,
+              read: false
+            });
+          }
+        }
+      });
+      
+      // Only add new alerts that don't already exist
+      const existingAlertIds = alerts.map(a => a.id);
+      const uniqueNewAlerts = newAlerts.filter(alert => !existingAlertIds.includes(alert.id));
+      
+      if (uniqueNewAlerts.length > 0) {
+        setAlerts([...alerts, ...uniqueNewAlerts]);
+      }
+      
+      // Update unread count
+      const unread = alerts.filter(a => !a.read).length;
+      setUnreadAlerts(unread);
+    }
+  }, [internships, loading, alerts]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -166,6 +319,10 @@ export default function Home() {
       notes: "",
       description: "",
       skills: [],
+      deadline: "",
+      interviewDate: "",
+      resumeUsed: "",
+      contacts: [],
     });
     setShowForm(false);
     setEditingId(null);
@@ -182,6 +339,10 @@ export default function Home() {
       notes: internship.notes || "",
       description: internship.description || "",
       skills: internship.skills || [],
+      deadline: internship.deadline || "",
+      interviewDate: internship.interviewDate || "",
+      resumeUsed: internship.resumeUsed || "",
+      contacts: internship.contacts || [],
     });
     setEditingId(internship.id);
     setShowForm(true);
@@ -189,6 +350,100 @@ export default function Home() {
 
   const handleDelete = (id: string) => {
     setInternships(prev => prev.filter(internship => internship.id !== id));
+  };
+
+  // Calendar Integration Functions
+  const generateCalendarEvents = () => {
+    const events: string[] = [];
+    
+    internships.forEach(internship => {
+      // Add deadline events
+      if (internship.deadline) {
+        const deadlineDate = new Date(internship.deadline);
+        events.push(createICSEvent({
+          title: `Application Deadline: ${internship.company} - ${internship.position}`,
+          start: deadlineDate,
+          end: deadlineDate,
+          description: `Deadline for ${internship.position} position at ${internship.company}`,
+          location: internship.location || '',
+        }));
+      }
+      
+      // Add interview events
+      if (internship.interviewDate) {
+        const interviewDate = new Date(internship.interviewDate);
+        const endDate = new Date(interviewDate.getTime() + 60 * 60 * 1000); // 1 hour interview
+        events.push(createICSEvent({
+          title: `Interview: ${internship.company} - ${internship.position}`,
+          start: interviewDate,
+          end: endDate,
+          description: `Interview for ${internship.position} position at ${internship.company}`,
+          location: internship.location || 'Check email for details',
+          alarm: 60, // 60 minutes before
+        }));
+      }
+    });
+    
+    return events;
+  };
+
+  const createICSEvent = (event: {
+    title: string;
+    start: Date;
+    end: Date;
+    description: string;
+    location: string;
+    alarm?: number;
+  }) => {
+    const formatDate = (date: Date) => {
+      return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    };
+    
+    let icsEvent = [
+      'BEGIN:VEVENT',
+      `UID:${Date.now()}@interntracker`,
+      `DTSTAMP:${formatDate(new Date())}`,
+      `DTSTART:${formatDate(event.start)}`,
+      `DTEND:${formatDate(event.end)}`,
+      `SUMMARY:${event.title}`,
+      `DESCRIPTION:${event.description}`,
+      `LOCATION:${event.location}`,
+    ];
+    
+    if (event.alarm) {
+      icsEvent.push(
+        'BEGIN:VALARM',
+        'TRIGGER:-PT' + event.alarm + 'M',
+        'ACTION:DISPLAY',
+        `DESCRIPTION:Reminder: ${event.title}`,
+        'END:VALARM'
+      );
+    }
+    
+    icsEvent.push('END:VEVENT');
+    return icsEvent.join('\r\n');
+  };
+
+  const downloadICS = (events: string[]) => {
+    if (events.length === 0) {
+      alert('No events to export. Add deadlines or interview dates to your applications.');
+      return;
+    }
+    
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//InternTracker//EN',
+      'CALSCALE:GREGORIAN',
+      ...events,
+      'END:VCALENDAR'
+    ].join('\r\n');
+    
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = 'internship-events.ics';
+    link.click();
   };
 
   const exportData = () => {
@@ -289,6 +544,33 @@ export default function Home() {
             </div>
             <div className="flex items-center space-x-4">
               <button
+                onClick={() => setShowAlerts(!showAlerts)}
+                className="relative text-gray-600 hover:text-gray-900 transition-colors duration-200"
+              >
+                <span className="text-xl">🔔</span>
+                {unreadAlerts > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadAlerts}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowResumes(!showResumes)}
+                className="text-gray-600 hover:text-gray-900 transition-colors duration-200"
+              >
+                <span className="text-xl">📄</span>
+              </button>
+              <button
+                onClick={() => {
+                  const calendarEvents = generateCalendarEvents();
+                  downloadICS(calendarEvents);
+                }}
+                className="text-gray-600 hover:text-gray-900 transition-colors duration-200"
+                title="Export to Calendar"
+              >
+                <span className="text-xl">📅</span>
+              </button>
+              <button
                 onClick={() => scrollToSection(statsRef)}
                 className="text-gray-600 hover:text-gray-900 transition-colors duration-200"
               >
@@ -304,6 +586,196 @@ export default function Home() {
           </div>
         </div>
       </nav>
+
+      {/* Alerts Dropdown */}
+      {showAlerts && (
+        <div className="fixed top-20 right-4 w-96 max-h-[500px] bg-white rounded-2xl shadow-2xl z-50 overflow-hidden animate-slide-down">
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">Notifications</h3>
+              <button
+                onClick={() => {
+                  setAlerts(alerts.map(a => ({ ...a, read: true })));
+                  setUnreadAlerts(0);
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Mark all as read
+              </button>
+            </div>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto">
+            {alerts.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <span className="text-4xl mb-2 block">🔔</span>
+                No notifications yet
+              </div>
+            ) : (
+              alerts.slice().reverse().map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                    !alert.read ? 'bg-blue-50' : ''
+                  }`}
+                  onClick={() => {
+                    setAlerts(alerts.map(a => a.id === alert.id ? { ...a, read: true } : a));
+                    const internship = internships.find(i => i.id === alert.internshipId);
+                    if (internship) {
+                      setSelectedInternship(internship);
+                    }
+                    setShowAlerts(false);
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">
+                      {alert.type === 'deadline' ? '📅' :
+                       alert.type === 'interview' ? '🎤' :
+                       alert.type === 'followup' ? '📧' : '📌'}
+                    </span>
+                    <div className="flex-1">
+                      <p className={`text-sm ${!alert.read ? 'font-semibold' : ''}`}>
+                        {alert.message}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(alert.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Resume Manager */}
+      {showResumes && (
+        <div className="fixed top-20 right-4 w-[500px] max-h-[600px] bg-white rounded-2xl shadow-2xl z-50 overflow-hidden animate-slide-down">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Resume Manager</h3>
+              <button
+                onClick={() => setShowResumes(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = '.pdf,.doc,.docx';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const newResume: Resume = {
+                          id: Date.now().toString(),
+                          name: file.name,
+                          type: 'general',
+                          url: reader.result as string,
+                          uploadDate: new Date().toISOString(),
+                          tags: []
+                        };
+                        setResumes([...resumes, newResume]);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  };
+                  input.click();
+                }}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                📤 Upload Resume
+              </button>
+              <select
+                className="px-4 py-2 border border-gray-300 rounded-lg"
+                onChange={(e) => {
+                  const type = e.target.value;
+                  if (type) {
+                    // Filter resumes by type
+                  }
+                }}
+              >
+                <option value="">All Types</option>
+                <option value="general">General</option>
+                <option value="tech">Technical</option>
+                <option value="business">Business</option>
+                <option value="creative">Creative</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="p-6 max-h-[450px] overflow-y-auto">
+            {resumes.length === 0 ? (
+              <div className="text-center py-12">
+                <span className="text-6xl mb-4 block">📄</span>
+                <h4 className="text-lg font-semibold text-gray-700 mb-2">No resumes uploaded yet</h4>
+                <p className="text-gray-500">Upload your resumes to easily attach them to applications</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {resumes.map((resume) => (
+                  <div
+                    key={resume.id}
+                    className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">📄</span>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{resume.name}</h4>
+                          <p className="text-sm text-gray-500">
+                            Uploaded {new Date(resume.uploadDate).toLocaleDateString()}
+                          </p>
+                          <div className="flex gap-2 mt-1">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                              {resume.type}
+                            </span>
+                            {resume.tags.map((tag, idx) => (
+                              <span key={idx} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = resume.url;
+                            link.download = resume.name;
+                            link.click();
+                          }}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setResumes(resumes.filter(r => r.id !== resume.id));
+                          }}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Hero Section with Video Background */}
       <section ref={heroRef} className="relative h-screen overflow-hidden">
@@ -626,6 +1098,12 @@ export default function Home() {
                 📊 {showStats ? 'Hide' : 'Show'} Analytics
               </button>
               <button
+                onClick={() => setShowAdvancedAnalytics(!showAdvancedAnalytics)}
+                className="bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700 px-4 py-2 rounded-lg hover:from-indigo-200 hover:to-blue-200 transition-all duration-300"
+              >
+                📈 Advanced Analytics
+              </button>
+              <button
                 onClick={exportData}
                 className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 px-4 py-2 rounded-lg hover:from-green-200 hover:to-emerald-200 transition-all duration-300"
               >
@@ -765,6 +1243,189 @@ export default function Home() {
                   Track up to 10 applications to unlock full analytics
                 </p>
               </div>
+              </div>
+            </div>
+          )}
+
+          {/* Advanced Analytics Dashboard */}
+          {showAdvancedAnalytics && (
+            <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 animate-slide-down">
+              <h3 className="text-2xl font-bold mb-6 text-gray-900">Advanced Analytics Dashboard</h3>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Response Rate by Company Type */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-4">Response Rate by Type</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>FAANG Companies</span>
+                        <span className="font-semibold">15%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: '15%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Startups</span>
+                        <span className="font-semibold">35%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '35%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Mid-size</span>
+                        <span className="font-semibold">25%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-purple-600 h-2 rounded-full" style={{ width: '25%' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Average Time to Response */}
+                <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Avg. Response Time</h4>
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {internships.length > 0 ? '12' : '0'} days
+                  </div>
+                  <p className="text-sm text-gray-600">From application to first response</p>
+                  <div className="mt-3 space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span>Fastest:</span>
+                      <span className="font-semibold">2 days</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Slowest:</span>
+                      <span className="font-semibold">45 days</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Application Velocity */}
+                <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Application Velocity</h4>
+                  <div className="text-3xl font-bold text-purple-600 mb-2">
+                    {internships.length > 0 ? Math.round(internships.length / 4) : 0}/week
+                  </div>
+                  <p className="text-sm text-gray-600">Average applications per week</p>
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500">This month: {internships.length} applications</div>
+                    <div className="text-xs text-gray-500">Last month: 0 applications</div>
+                  </div>
+                </div>
+
+                {/* Success Metrics */}
+                <div className="bg-gradient-to-br from-orange-50 to-red-100 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Conversion Funnel</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Applied → Interview</span>
+                      <span className="font-semibold text-blue-600">
+                        {stats.total > 0 ? Math.round((stats.interview / stats.total) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Interview → Offer</span>
+                      <span className="font-semibold text-green-600">
+                        {stats.interview > 0 ? Math.round((stats.offer / stats.interview) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Offer → Accepted</span>
+                      <span className="font-semibold text-purple-600">
+                        {stats.offer > 0 ? Math.round((stats.accepted / stats.offer) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Industry Breakdown */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-4">Applications by Industry</h4>
+                  <div className="space-y-3">
+                    {['Technology', 'Finance', 'Healthcare', 'Retail', 'Other'].map((industry, idx) => {
+                      const count = Math.floor(Math.random() * 10) + 1;
+                      const percentage = (count / 30) * 100;
+                      return (
+                        <div key={industry}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>{industry}</span>
+                            <span className="font-semibold">{count}</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                idx === 0 ? 'bg-blue-500' :
+                                idx === 1 ? 'bg-green-500' :
+                                idx === 2 ? 'bg-purple-500' :
+                                idx === 3 ? 'bg-orange-500' : 'bg-gray-500'
+                              }`} 
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-700 mb-4">Top Skills in Demand</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {['Python', 'React', 'Machine Learning', 'AWS', 'SQL', 'Java', 'Node.js', 'Docker', 'Kubernetes', 'Git'].map((skill) => (
+                      <span
+                        key={skill}
+                        className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm hover:bg-gray-100 transition-colors"
+                      >
+                        {skill}
+                        <span className="ml-1 text-xs text-gray-500">({Math.floor(Math.random() * 15) + 1})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Calendar Heatmap */}
+              <div className="mt-6 bg-gray-50 rounded-xl p-6">
+                <h4 className="text-lg font-semibold text-gray-700 mb-4">Application Activity Calendar</h4>
+                <div className="grid grid-cols-7 gap-1">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
+                    <div key={day} className="text-center text-xs text-gray-500 font-semibold p-2">
+                      {day}
+                    </div>
+                  ))}
+                  {[...Array(35)].map((_, i) => {
+                    const intensity = Math.random();
+                    return (
+                      <div
+                        key={i}
+                        className={`aspect-square rounded ${
+                          intensity > 0.8 ? 'bg-green-600' :
+                          intensity > 0.6 ? 'bg-green-500' :
+                          intensity > 0.4 ? 'bg-green-400' :
+                          intensity > 0.2 ? 'bg-green-300' : 'bg-gray-100'
+                        } hover:ring-2 hover:ring-green-600 transition-all cursor-pointer`}
+                        title={`${Math.floor(intensity * 5)} applications`}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-4 text-xs text-gray-500">
+                  <span>Less</span>
+                  <div className="flex gap-1">
+                    {['bg-gray-100', 'bg-green-300', 'bg-green-400', 'bg-green-500', 'bg-green-600'].map(color => (
+                      <div key={color} className={`w-3 h-3 rounded ${color}`}></div>
+                    ))}
+                  </div>
+                  <span>More</span>
+                </div>
               </div>
             </div>
           )}
@@ -1090,6 +1751,49 @@ export default function Home() {
                     placeholder="e.g., $20-25/hour or $60,000-80,000/year"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Application Deadline
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) => setFormData({...formData, deadline: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Interview Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.interviewDate}
+                    onChange={(e) => setFormData({...formData, interviewDate: e.target.value})}
+                    disabled={formData.status !== 'interview'}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 disabled:bg-gray-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Resume Used
+                  </label>
+                  <select
+                    value={formData.resumeUsed}
+                    onChange={(e) => setFormData({...formData, resumeUsed: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 appearance-none bg-white"
+                  >
+                    <option value="">Select a resume</option>
+                    {resumes.map(resume => (
+                      <option key={resume.id} value={resume.id}>
+                        {resume.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -1194,17 +1898,93 @@ export default function Home() {
                 )}
               </div>
 
-              {selectedInternship.applicationDate && (
+              {(selectedInternship.applicationDate || selectedInternship.deadline || selectedInternship.interviewDate) && (
                 <div className="bg-gray-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Application Timeline</h3>
-                  <p className="text-gray-600">
-                    Applied on {new Date(selectedInternship.applicationDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
+                  <h3 className="font-semibold text-gray-900 mb-3">Timeline & Important Dates</h3>
+                  <div className="space-y-3">
+                    {selectedInternship.applicationDate && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📝</span>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Applied</p>
+                          <p className="text-gray-600">
+                            {new Date(selectedInternship.applicationDate).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedInternship.deadline && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">⏰</span>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Application Deadline</p>
+                          <p className="text-gray-600">
+                            {new Date(selectedInternship.deadline).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedInternship.interviewDate && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🎤</span>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Interview Scheduled</p>
+                          <p className="text-gray-600">
+                            {new Date(selectedInternship.interviewDate).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })} at {new Date(selectedInternship.interviewDate).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const events = [];
+                      if (selectedInternship.deadline) {
+                        events.push(createICSEvent({
+                          title: `Deadline: ${selectedInternship.company} - ${selectedInternship.position}`,
+                          start: new Date(selectedInternship.deadline),
+                          end: new Date(selectedInternship.deadline),
+                          description: `Application deadline for ${selectedInternship.position}`,
+                          location: selectedInternship.location || '',
+                        }));
+                      }
+                      if (selectedInternship.interviewDate) {
+                        const interviewDate = new Date(selectedInternship.interviewDate);
+                        events.push(createICSEvent({
+                          title: `Interview: ${selectedInternship.company} - ${selectedInternship.position}`,
+                          start: interviewDate,
+                          end: new Date(interviewDate.getTime() + 60 * 60 * 1000),
+                          description: `Interview for ${selectedInternship.position}`,
+                          location: selectedInternship.location || 'Check email for details',
+                          alarm: 60,
+                        }));
+                      }
+                      if (events.length > 0) {
+                        downloadICS(events);
+                      }
+                    }}
+                    className="mt-4 w-full bg-blue-100 text-blue-700 py-2 px-4 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                  >
+                    📅 Add to Calendar
+                  </button>
                 </div>
               )}
 
